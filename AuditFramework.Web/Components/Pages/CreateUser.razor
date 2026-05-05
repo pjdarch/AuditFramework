@@ -1,0 +1,116 @@
+@page "/create-user"
+@rendermode InteractiveServer
+@inject TemporalProfileApiClient Api
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Nav
+
+<PageTitle>Create User</PageTitle>
+
+<div class="d-flex align-items-center gap-3 mb-4">
+    <a href="/users" class="btn btn-outline-secondary btn-sm">← Users</a>
+    <h1 class="mb-0">Create User</h1>
+</div>
+
+@if (!isAdmin)
+{
+    <div class="alert alert-warning">You need admin access to create users.</div>
+}
+else
+{
+    <div class="card" style="max-width:480px">
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Email <span class="text-danger">*</span></label>
+                <input class="form-control" type="email" @bind="email" placeholder="user@example.com" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Name <span class="text-danger">*</span></label>
+                <input class="form-control" @bind="name" placeholder="Full name" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Bio</label>
+                <textarea class="form-control" rows="2" @bind="bio"></textarea>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Role</label>
+                <select class="form-select" @bind="role">
+                    <option value="user">user</option>
+                    <option value="admin">admin</option>
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label">Password</label>
+                <input class="form-control" type="password" @bind="password" placeholder="Leave blank for Demo@1234" />
+                <div class="form-text">Must be ≥ 8 chars with uppercase, digit and symbol. Default: Demo@1234</div>
+            </div>
+
+            <button class="btn btn-primary" @onclick="Submit" disabled="@isSaving">
+                @(isSaving ? "Creating…" : "Create User")
+            </button>
+
+            @if (errorMessage is not null)
+            {
+                <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool isAdmin;
+    private Guid actorId;
+
+    private string email = "";
+    private string name = "";
+    private string? bio;
+    private string role = "user";
+    private string? password;
+
+    private bool isSaving;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        var userEmail = state.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        isAdmin = userEmail == "admin@example.com";
+        actorId = new Guid("00000000-0000-0000-0000-000000000001");
+    }
+
+    private async Task Submit()
+    {
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(name))
+        {
+            errorMessage = "Email and Name are required.";
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            var (ok, error, _) = await Api.CreateUserAsync(
+                actorId, "admin",
+                email.Trim(), name.Trim(), bio?.Trim(), role,
+                string.IsNullOrWhiteSpace(password) ? "Demo@1234" : password);
+
+            if (!ok)
+                errorMessage = error ?? "Failed to create user.";
+            else
+                Nav.NavigateTo("/users");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}
