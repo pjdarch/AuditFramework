@@ -16,7 +16,7 @@ public record WriteAuditEventRequest(
 
 public class WriteAuditEventActivity(AuditDbContext db)
 {
-    [Activity]
+    [Activity("WriteAuditEvent")]
     public async Task ExecuteAsync(WriteAuditEventRequest request)
     {
         var options = new JsonSerializerOptions { WriteIndented = false };

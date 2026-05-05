@@ -14,7 +14,7 @@ public record SaveUserStateRequest(
 
 public class SaveUserStateActivity(AuditDbContext db)
 {
-    [Activity]
+    [Activity("SaveUserState")]
     public async Task ExecuteAsync(SaveUserStateRequest request)
     {
         var existing = await db.Users.FindAsync(request.UserId);
