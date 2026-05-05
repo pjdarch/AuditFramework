@@ -1,26 +1,34 @@
 @page "/profile"
 @rendermode InteractiveServer
 @inject TemporalProfileApiClient ProfileApi
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Nav
 
 <PageTitle>User Profile</PageTitle>
 
 <h1>Edit User Profile</h1>
 
-<div class="mb-3">
-    <label class="form-label fw-semibold">Acting as</label>
-    <select class="form-select" style="max-width:350px" @bind="selectedUser" @bind:after="OnUserChanged">
-        <option value="admin">Admin User (admin@example.com)</option>
-        <option value="user">Regular User (user@example.com)</option>
-    </select>
-    <div class="form-text">Simulates switching between seeded users (no real auth in this PoC).</div>
-</div>
-
-@if (profile is null && !isError)
+@if (!isAuthenticated)
+{
+    <div class="alert alert-info">
+        Please <a href="/login">sign in</a> to edit your profile.
+    </div>
+}
+else if (profile is null && !isError)
 {
     <p><em>Loading profile...</em></p>
 }
 else if (profile is not null)
 {
+    @if (isEditingOther)
+    {
+        <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" style="max-width:500px">
+            <span class="bi bi-shield-fill-exclamation"></span>
+            Editing as admin on behalf of <strong>@profile.Email</strong>.
+            <a href="/users" class="ms-auto">← Back to Users</a>
+        </div>
+    }
+
     <div class="card" style="max-width:500px">
         <div class="card-body">
             <p class="text-muted mb-3">
@@ -57,12 +65,26 @@ else if (profile is not null)
         </div>
     </div>
 }
+else if (isError)
+{
+    <div class="alert alert-danger">@message</div>
+}
 
 @code {
-    private static readonly Guid AdminId = new("00000000-0000-0000-0000-000000000001");
-    private static readonly Guid RegularUserId = new("00000000-0000-0000-0000-000000000002");
+    [Parameter, SupplyParameterFromQuery(Name = "userId")]
+    public Guid? TargetUserId { get; set; }
 
-    private string selectedUser = "admin";
+    private static readonly Dictionary<string, (Guid Id, string Role)> UserMap = new()
+    {
+        ["admin@example.com"] = (new Guid("00000000-0000-0000-0000-000000000001"), "admin"),
+        ["user@example.com"]  = (new Guid("00000000-0000-0000-0000-000000000002"), "user"),
+    };
+
+    private bool isAuthenticated;
+    private bool isEditingOther;
+    private Guid actorId;
+    private string actorRole = "user";
+    private Guid targetUserId;
     private UserProfile? profile;
     private string? editName;
     private string? editBio;
@@ -70,15 +92,37 @@ else if (profile is not null)
     private string? message;
     private bool isError;
 
-    private Guid ActorId => selectedUser == "admin" ? AdminId : RegularUserId;
-    private string ActorRole => selectedUser == "admin" ? "admin" : "user";
-
-    protected override async Task OnInitializedAsync() => await LoadProfile();
-
-    private async Task OnUserChanged()
+    protected override async Task OnInitializedAsync()
     {
-        message = null;
-        isError = false;
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        var email = state.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                    ?? state.User.Identity?.Name;
+
+        if (string.IsNullOrEmpty(email) || !state.User.Identity!.IsAuthenticated)
+        {
+            isAuthenticated = false;
+            return;
+        }
+
+        isAuthenticated = true;
+
+        if (!UserMap.TryGetValue(email, out var mapped))
+            mapped = (new Guid("00000000-0000-0000-0000-000000000002"), "user");
+
+        actorId   = mapped.Id;
+        actorRole = mapped.Role;
+
+        // Admin can edit another user via ?userId=xxx
+        if (TargetUserId.HasValue && actorRole == "admin" && TargetUserId.Value != actorId)
+        {
+            targetUserId  = TargetUserId.Value;
+            isEditingOther = true;
+        }
+        else
+        {
+            targetUserId = actorId;
+        }
+
         await LoadProfile();
     }
 
@@ -87,11 +131,11 @@ else if (profile is not null)
         profile = null;
         try
         {
-            profile = await ProfileApi.GetProfileAsync(ActorId);
+            profile = await ProfileApi.GetProfileAsync(targetUserId);
             if (profile is not null)
             {
                 editName = profile.Name;
-                editBio = profile.Bio;
+                editBio  = profile.Bio;
             }
         }
         catch (Exception ex)
@@ -105,13 +149,13 @@ else if (profile is not null)
     {
         if (profile is null) return;
         isSaving = true;
-        message = null;
-        isError = false;
+        message  = null;
+        isError  = false;
 
         try
         {
             profile = await ProfileApi.UpdateProfileAsync(
-                ActorId, ActorId, ActorRole, editName, editBio);
+                targetUserId, actorId, actorRole, editName, editBio);
             message = "Profile updated! Check Temporal UI to see the audit event.";
         }
         catch (Exception ex)
