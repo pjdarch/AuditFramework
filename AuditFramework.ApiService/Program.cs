@@ -1,4 +1,5 @@
 using AuditFramework.ApiService.Data;
+using AuditFramework.ApiService.Data.Models;
 using AuditFramework.ApiService.Endpoints;
 using AuditFramework.ApiService.Temporal;
 using AuditFramework.ApiService.Temporal.Activities;
