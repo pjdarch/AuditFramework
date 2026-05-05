@@ -1,0 +1,73 @@
+@page "/account/security"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject IdentityApiClient Identity
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Nav
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        if (!(state.User.Identity?.IsAuthenticated ?? false))
+        {
+            Nav.NavigateTo($"/login?returnUrl={Uri.EscapeDataString("/account/security")}", replace: true);
+        }
+    }
+}
+
+<PageTitle>Security</PageTitle>
+
+<h1>Security</h1>
+
+<h2 class="h5">Change password</h2>
+
+<EditForm Model="model" OnValidSubmit="Submit" FormName="change-password">
+    <DataAnnotationsValidator />
+    <div class="mb-3">
+        <label class="form-label">Current password</label>
+        <InputText class="form-control" type="password" @bind-Value="model.CurrentPassword" autocomplete="current-password" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">New password</label>
+        <InputText class="form-control" type="password" @bind-Value="model.NewPassword" autocomplete="new-password" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Confirm new password</label>
+        <InputText class="form-control" type="password" @bind-Value="model.ConfirmPassword" autocomplete="new-password" />
+    </div>
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="alert alert-success" role="alert">@message</div>
+    }
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <div class="alert alert-danger" role="alert">@error</div>
+    }
+    <button class="btn btn-primary" type="submit" disabled="@busy">Change password</button>
+</EditForm>
+
+@code {
+    private PasswordModel model = new();
+    private bool busy;
+    private string? message;
+    private string? error;
+
+    private async Task Submit()
+    {
+        message = null; error = null;
+        if (model.NewPassword != model.ConfirmPassword) { error = "New passwords do not match."; return; }
+        busy = true;
+        var (ok, err) = await Identity.ChangePasswordAsync(model.CurrentPassword, model.NewPassword);
+        busy = false;
+        if (!ok) { error = err ?? "Password change failed."; return; }
+        message = "Password updated.";
+        model = new PasswordModel();
+    }
+
+    public class PasswordModel
+    {
+        public string CurrentPassword { get; set; } = "";
+        public string NewPassword { get; set; } = "";
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

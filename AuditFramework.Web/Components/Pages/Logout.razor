@@ -1,0 +1,14 @@
+@page "/logout"
+@rendermode InteractiveServer
+@inject IdentityApiClient Identity
+@inject NavigationManager Nav
+
+<PageTitle>Sign out</PageTitle>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Identity.Logout();
+        Nav.NavigateTo("/login", replace: true);
+    }
+}

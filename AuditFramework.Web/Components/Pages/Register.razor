@@ -1,0 +1,56 @@
+@page "/register"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@layout AuthLayout
+@inject IdentityApiClient Identity
+@inject NavigationManager Nav
+
+<PageTitle>Create account</PageTitle>
+
+<div class="auth-card">
+    <h1 class="h3 mb-4 text-center">Create account</h1>
+    <EditForm Model="model" OnValidSubmit="Submit" FormName="register">
+        <DataAnnotationsValidator />
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+            <InputText class="form-control" @bind-Value="model.Email" autocomplete="username" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <InputText class="form-control" type="password" @bind-Value="model.Password" autocomplete="new-password" />
+        </div>
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <div class="alert alert-danger" role="alert">@error</div>
+        }
+        @if (!string.IsNullOrEmpty(info))
+        {
+            <div class="alert alert-success" role="alert">@info</div>
+        }
+        <button class="btn btn-primary w-100 mb-2" type="submit" disabled="@busy">Create account</button>
+        <a class="btn btn-outline-secondary w-100" href="/login">Sign in instead</a>
+    </EditForm>
+</div>
+
+@code {
+    private RegisterModel model = new();
+    private string? error;
+    private string? info;
+    private bool busy;
+
+    private async Task Submit()
+    {
+        busy = true; error = null; info = null;
+        var (ok, err) = await Identity.RegisterAsync(model.Email, model.Password);
+        if (!ok) { busy = false; error = err ?? "Registration failed."; return; }
+        var (loginOk, loginErr) = await Identity.LoginAsync(model.Email, model.Password);
+        busy = false;
+        if (!loginOk) { info = "Account created. Please sign in."; Nav.NavigateTo("/login"); return; }
+        Nav.NavigateTo("/profile");
+    }
+
+    public class RegisterModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

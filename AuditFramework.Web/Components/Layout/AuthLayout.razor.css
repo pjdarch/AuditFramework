@@ -1,0 +1,54 @@
+.auth-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(160deg, #1c1f33 0%, #2a1c40 100%);
+    color: #f5f5f5;
+}
+
+.auth-brand {
+    padding: 1.5rem 2rem;
+}
+
+.auth-brand a {
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.auth-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+::deep .auth-card {
+    width: 100%;
+    max-width: 26rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+}
+
+::deep .auth-card .form-label {
+    color: #cfcfd5;
+}
+
+::deep .auth-card .form-control {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+::deep .auth-card .form-control:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #6c8cff;
+    color: #fff;
+    box-shadow: 0 0 0 0.2rem rgba(108, 140, 255, 0.25);
+}

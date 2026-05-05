@@ -2,11 +2,19 @@ namespace AuditFramework.Web;
 
 public class WeatherApiClient(HttpClient httpClient)
 {
-    public async Task<WeatherForecast[]> GetWeatherAsync(int maxItems = 10, CancellationToken cancellationToken = default)
+    public async Task<WeatherForecast[]> GetWeatherAsync(
+        int maxItems = 10,
+        CancellationToken cancellationToken = default
+    )
     {
         List<WeatherForecast>? forecasts = null;
 
-        await foreach (var forecast in httpClient.GetFromJsonAsAsyncEnumerable<WeatherForecast>("/weatherforecast", cancellationToken))
+        await foreach (
+            var forecast in httpClient.GetFromJsonAsAsyncEnumerable<WeatherForecast>(
+                "/weatherforecast",
+                cancellationToken
+            )
+        )
         {
             if (forecasts?.Count >= maxItems)
             {

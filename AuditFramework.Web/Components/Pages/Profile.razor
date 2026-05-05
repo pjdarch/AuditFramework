@@ -1,0 +1,96 @@
+@page "/profile"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject ProfileApiClient Api
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Nav
+
+<PageTitle>Profile</PageTitle>
+
+<h1>Profile</h1>
+
+@if (loading)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="model" OnValidSubmit="Save" FormName="profile">
+        <DataAnnotationsValidator />
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input class="form-control" value="@model.Email" disabled />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">First name</label>
+            <InputText class="form-control" @bind-Value="model.FirstName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Last name</label>
+            <InputText class="form-control" @bind-Value="model.LastName" />
+        </div>
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <div class="alert alert-success" role="alert">@message</div>
+        }
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <div class="alert alert-danger" role="alert">@error</div>
+        }
+        <button class="btn btn-primary" type="submit" disabled="@busy">Save</button>
+        <a class="btn btn-link" href="/account/security">Change password</a>
+    </EditForm>
+}
+
+@code {
+    private ProfileModel model = new();
+    private bool loading = true;
+    private bool busy;
+    private string? message;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        if (!(state.User.Identity?.IsAuthenticated ?? false))
+        {
+            Nav.NavigateTo($"/login?returnUrl={Uri.EscapeDataString("/profile")}", replace: true);
+            return;
+        }
+        try
+        {
+            var dto = await Api.GetAsync();
+            if (dto is not null)
+            {
+                model = new ProfileModel
+                {
+                    Email = dto.Email ?? "",
+                    FirstName = dto.FirstName ?? "",
+                    LastName = dto.LastName ?? "",
+                };
+            }
+        }
+        catch (Exception ex) { error = ex.Message; }
+        loading = false;
+    }
+
+    private async Task Save()
+    {
+        busy = true; message = null; error = null;
+        var (ok, err, dto) = await Api.UpdateAsync(model.FirstName, model.LastName);
+        busy = false;
+        if (!ok) { error = err ?? "Update failed."; return; }
+        if (dto is not null)
+        {
+            model.FirstName = dto.FirstName ?? "";
+            model.LastName = dto.LastName ?? "";
+        }
+        message = "Profile saved.";
+    }
+
+    public class ProfileModel
+    {
+        public string Email { get; set; } = "";
+        public string FirstName { get; set; } = "";
+        public string LastName { get; set; } = "";
+    }
+}
