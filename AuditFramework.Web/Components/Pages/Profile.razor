@@ -1,172 +1,127 @@
 @page "/profile"
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
-@inject ProfileApiClient Api
-@inject AuthenticationStateProvider AuthProvider
-@inject NavigationManager Nav
-@using System.ComponentModel.DataAnnotations
+@rendermode InteractiveServer
+@inject TemporalProfileApiClient ProfileApi
 
-<PageTitle>Profile</PageTitle>
+<PageTitle>User Profile</PageTitle>
 
-<h1>Profile</h1>
+<h1>Edit User Profile</h1>
 
-@if (loading)
+<div class="mb-3">
+    <label class="form-label fw-semibold">Acting as</label>
+    <select class="form-select" style="max-width:350px" @bind="selectedUser" @bind:after="OnUserChanged">
+        <option value="admin">Admin User (admin@example.com)</option>
+        <option value="user">Regular User (user@example.com)</option>
+    </select>
+    <div class="form-text">Simulates switching between seeded users (no real auth in this PoC).</div>
+</div>
+
+@if (profile is null && !isError)
 {
-    <p><em>Loading...</em></p>
+    <p><em>Loading profile...</em></p>
 }
-else
+else if (profile is not null)
 {
-    <EditForm Model="model" OnValidSubmit="Save" FormName="profile">
-        <DataAnnotationsValidator />
-        <div class="mb-3">
-            <label class="form-label">Email</label>
-            <input class="form-control" value="@model.Email" disabled />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">First name</label>
-            <InputText class="form-control" @bind-Value="model.FirstName" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Last name</label>
-            <InputText class="form-control" @bind-Value="model.LastName" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Phone number</label>
-            <InputText class="form-control" @bind-Value="model.PhoneNumber" autocomplete="tel" />
-            <ValidationMessage For="@(() => model.PhoneNumber)" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Date of birth</label>
-            <InputDate class="form-control" @bind-Value="model.DateOfBirth" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Address line 1</label>
-            <InputText class="form-control" @bind-Value="model.AddressLine1" autocomplete="address-line1" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Address line 2</label>
-            <InputText class="form-control" @bind-Value="model.AddressLine2" autocomplete="address-line2" />
-        </div>
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label">City</label>
-                <InputText class="form-control" @bind-Value="model.City" autocomplete="address-level2" />
+    <div class="card" style="max-width:500px">
+        <div class="card-body">
+            <p class="text-muted mb-3">
+                Email: <strong>@profile.Email</strong>
+                &nbsp;|&nbsp;
+                Role: <span class="badge bg-@(profile.Role == "admin" ? "danger" : "secondary")">@profile.Role</span>
+            </p>
+
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <input class="form-control" @bind="editName" />
             </div>
-            <div class="col-md-6 mb-3">
-                <label class="form-label">State / Province</label>
-                <InputText class="form-control" @bind-Value="model.StateOrProvince" autocomplete="address-level1" />
+
+            <div class="mb-3">
+                <label class="form-label">Bio</label>
+                <textarea class="form-control" rows="3" @bind="editBio"></textarea>
             </div>
+
+            <button class="btn btn-primary" @onclick="SaveProfile" disabled="@isSaving">
+                @(isSaving ? "Saving…" : "Save Changes")
+            </button>
+
+            @if (message is not null)
+            {
+                <div class="alert @(isError ? "alert-danger" : "alert-success") mt-3 mb-0">
+                    @message
+                </div>
+            }
         </div>
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Postal code</label>
-                <InputText class="form-control" @bind-Value="model.PostalCode" autocomplete="postal-code" />
-            </div>
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Country</label>
-                <InputText class="form-control" @bind-Value="model.Country" autocomplete="country-name" />
-            </div>
+        <div class="card-footer text-muted small">
+            Last updated: @profile.UpdatedAt.ToLocalTime().ToString("g")
+            &nbsp;|&nbsp;
+            Audit history: <a href="http://localhost:8233" target="_blank">Temporal UI</a>
         </div>
-        @if (!string.IsNullOrEmpty(message))
-        {
-            <div class="alert alert-success" role="alert">@message</div>
-        }
-        @if (!string.IsNullOrEmpty(error))
-        {
-            <div class="alert alert-danger" role="alert">@error</div>
-        }
-        <button class="btn btn-primary" type="submit" disabled="@busy">Save</button>
-        <a class="btn btn-link" href="/account/security">Change password</a>
-    </EditForm>
+    </div>
 }
 
 @code {
-    private ProfileModel model = new();
-    private bool loading = true;
-    private bool busy;
-    private string? message;
-    private string? error;
+    private static readonly Guid AdminId = new("00000000-0000-0000-0000-000000000001");
+    private static readonly Guid RegularUserId = new("00000000-0000-0000-0000-000000000002");
 
-    protected override async Task OnInitializedAsync()
+    private string selectedUser = "admin";
+    private UserProfile? profile;
+    private string? editName;
+    private string? editBio;
+    private bool isSaving;
+    private string? message;
+    private bool isError;
+
+    private Guid ActorId => selectedUser == "admin" ? AdminId : RegularUserId;
+    private string ActorRole => selectedUser == "admin" ? "admin" : "user";
+
+    protected override async Task OnInitializedAsync() => await LoadProfile();
+
+    private async Task OnUserChanged()
     {
-        var state = await AuthProvider.GetAuthenticationStateAsync();
-        if (!(state.User.Identity?.IsAuthenticated ?? false))
-        {
-            Nav.NavigateTo($"/login?returnUrl={Uri.EscapeDataString("/profile")}", replace: true);
-            return;
-        }
+        message = null;
+        isError = false;
+        await LoadProfile();
+    }
+
+    private async Task LoadProfile()
+    {
+        profile = null;
         try
         {
-            var dto = await Api.GetAsync();
-            if (dto is not null)
+            profile = await ProfileApi.GetProfileAsync(ActorId);
+            if (profile is not null)
             {
-                model = new ProfileModel
-                {
-                    Email = dto.Email ?? "",
-                    FirstName = dto.FirstName ?? "",
-                    LastName = dto.LastName ?? "",
-                    PhoneNumber = dto.PhoneNumber ?? "",
-                    DateOfBirth = dto.DateOfBirth,
-                    AddressLine1 = dto.AddressLine1 ?? "",
-                    AddressLine2 = dto.AddressLine2 ?? "",
-                    City = dto.City ?? "",
-                    StateOrProvince = dto.StateOrProvince ?? "",
-                    PostalCode = dto.PostalCode ?? "",
-                    Country = dto.Country ?? "",
-                };
+                editName = profile.Name;
+                editBio = profile.Bio;
             }
         }
-        catch (Exception ex) { error = ex.Message; }
-        loading = false;
-    }
-
-    private async Task Save()
-    {
-        busy = true; message = null; error = null;
-        var (ok, err, dto) = await Api.UpdateAsync(
-            new UpdateProfileRequest(
-                model.FirstName,
-                model.LastName,
-                model.PhoneNumber,
-                model.DateOfBirth,
-                model.AddressLine1,
-                model.AddressLine2,
-                model.City,
-                model.StateOrProvince,
-                model.PostalCode,
-                model.Country
-            )
-        );
-        busy = false;
-        if (!ok) { error = err ?? "Update failed."; return; }
-        if (dto is not null)
+        catch (Exception ex)
         {
-            model.FirstName = dto.FirstName ?? "";
-            model.LastName = dto.LastName ?? "";
-            model.PhoneNumber = dto.PhoneNumber ?? "";
-            model.DateOfBirth = dto.DateOfBirth;
-            model.AddressLine1 = dto.AddressLine1 ?? "";
-            model.AddressLine2 = dto.AddressLine2 ?? "";
-            model.City = dto.City ?? "";
-            model.StateOrProvince = dto.StateOrProvince ?? "";
-            model.PostalCode = dto.PostalCode ?? "";
-            model.Country = dto.Country ?? "";
+            isError = true;
+            message = $"Failed to load profile: {ex.Message}";
         }
-        message = "Profile saved.";
     }
 
-    public class ProfileModel
+    private async Task SaveProfile()
     {
-        public string Email { get; set; } = "";
-        public string FirstName { get; set; } = "";
-        public string LastName { get; set; } = "";
-        [Phone]
-        public string PhoneNumber { get; set; } = "";
-        public DateOnly? DateOfBirth { get; set; }
-        public string AddressLine1 { get; set; } = "";
-        public string AddressLine2 { get; set; } = "";
-        public string City { get; set; } = "";
-        public string StateOrProvince { get; set; } = "";
-        public string PostalCode { get; set; } = "";
-        public string Country { get; set; } = "";
+        if (profile is null) return;
+        isSaving = true;
+        message = null;
+        isError = false;
+
+        try
+        {
+            profile = await ProfileApi.UpdateProfileAsync(
+                ActorId, ActorId, ActorRole, editName, editBio);
+            message = "Profile updated! Check Temporal UI to see the audit event.";
+        }
+        catch (Exception ex)
+        {
+            isError = true;
+            message = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
     }
 }
