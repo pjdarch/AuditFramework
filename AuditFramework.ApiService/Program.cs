@@ -172,7 +172,9 @@ app.MapPatch("/users/{userId:guid}/profile", async (
     // Note: Temporal .NET SDK strips "Async" from method names → "UpdateProfileAsync" → "UpdateProfile"
     var updatedState = await handle.ExecuteUpdateAsync<UserProfileState>(
         "UpdateProfile",
-        [new UpdateUserProfileRequest(actorId, actorRole, body.Name, body.Bio)]);
+        [new UpdateUserProfileRequest(actorId, actorRole, body.Name, body.Bio, body.Email,
+            // Only admins can change roles
+            actorRole == "admin" ? body.Role : null)]);
 
     return Results.Ok(updatedState);
 });
@@ -180,4 +182,4 @@ app.MapPatch("/users/{userId:guid}/profile", async (
 app.MapDefaultEndpoints();
 app.Run();
 
-record UpdateProfileBody(string? Name, string? Bio);
+record UpdateProfileBody(string? Name, string? Bio, string? Email, string? Role);

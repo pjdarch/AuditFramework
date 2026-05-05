@@ -4,5 +4,7 @@ public record UpdateUserProfileRequest(
     Guid ActorId,
     string ActorRole,
     string? NewName,
-    string? NewBio
+    string? NewBio,
+    string? NewEmail,
+    string? NewRole
 );
