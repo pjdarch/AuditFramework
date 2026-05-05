@@ -1,0 +1,139 @@
+@page "/audit"
+@rendermode InteractiveServer
+@using System.Text.Json
+
+<PageTitle>Audit Log</PageTitle>
+
+<h1 class="mb-4">Audit Log</h1>
+<p class="text-muted">Recent changes recorded across audited entities.</p>
+
+<div class="list-group">
+    @foreach (var entry in entries)
+    {
+        var isOpen = expanded.Contains(entry.Id);
+        <div class="list-group-item p-0">
+            <button type="button"
+                    class="btn w-100 text-start p-3 d-flex justify-content-between align-items-center"
+                    @onclick="() => Toggle(entry.Id)"
+                    aria-expanded="@isOpen.ToString().ToLowerInvariant()">
+                <span>
+                    <strong>@entry.Actor</strong>
+                    <span class="text-muted">@ActionVerb(entry.Action)</span>
+                    @entry.ResourceType
+                    <code>@entry.ResourceLabel</code>
+                </span>
+                <span class="d-flex align-items-center gap-3">
+                    <small class="text-muted">@FormatRelative(entry.Timestamp)</small>
+                    <span class="bi @(isOpen ? "bi-chevron-up" : "bi-chevron-down")" aria-hidden="true"></span>
+                </span>
+            </button>
+            @if (isOpen)
+            {
+                <div class="border-top p-3 bg-light">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <h6 class="text-muted text-uppercase small">Old</h6>
+                            @if (entry.OldState is null)
+                            {
+                                <p class="text-muted fst-italic mb-0">— none —</p>
+                            }
+                            else
+                            {
+                                <pre class="bg-white border rounded p-2 mb-0"><code>@ToJson(entry.OldState)</code></pre>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted text-uppercase small">New</h6>
+                            @if (entry.NewState is null)
+                            {
+                                <p class="text-muted fst-italic mb-0">— none —</p>
+                            }
+                            else
+                            {
+                                <pre class="bg-white border rounded p-2 mb-0"><code>@ToJson(entry.NewState)</code></pre>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private readonly HashSet<Guid> expanded = new();
+
+    private void Toggle(Guid id)
+    {
+        if (!expanded.Add(id)) expanded.Remove(id);
+    }
+
+    private static string ActionVerb(AuditAction action) => action switch
+    {
+        AuditAction.Created => " created ",
+        AuditAction.Updated => " updated ",
+        AuditAction.Deleted => " deleted ",
+        _ => " changed "
+    };
+
+    private static string FormatRelative(DateTimeOffset ts)
+    {
+        var delta = DateTimeOffset.UtcNow - ts;
+        if (delta.TotalSeconds < 60) return "just now";
+        if (delta.TotalMinutes < 60) return $"{(int)delta.TotalMinutes}m ago";
+        if (delta.TotalHours < 24) return $"{(int)delta.TotalHours}h ago";
+        return $"{(int)delta.TotalDays}d ago";
+    }
+
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+    private static string ToJson(object value) => JsonSerializer.Serialize(value, JsonOpts);
+
+    public enum AuditAction { Created, Updated, Deleted }
+
+    public record AuditEntry(
+        Guid Id,
+        DateTimeOffset Timestamp,
+        string Actor,
+        AuditAction Action,
+        string ResourceType,
+        string ResourceLabel,
+        object? OldState,
+        object? NewState);
+
+    private static readonly DateTimeOffset Now = DateTimeOffset.UtcNow;
+
+    private readonly List<AuditEntry> entries = new()
+    {
+        new(Guid.NewGuid(), Now.AddMinutes(-3), "alice@example.com", AuditAction.Created, "User", "eve@example.com",
+            null,
+            new { Email = "eve@example.com", GivenName = "Eve", FamilyName = "Stone", IsActive = true }),
+
+        new(Guid.NewGuid(), Now.AddMinutes(-22), "bob@example.com", AuditAction.Updated, "User", "bob@example.com",
+            new { Email = "bob@example.com", GivenName = "Bob", FamilyName = "", IsActive = true },
+            new { Email = "bob@example.com", GivenName = "Bob", FamilyName = "Wexler", IsActive = true }),
+
+        new(Guid.NewGuid(), Now.AddHours(-2), "alice@example.com", AuditAction.Updated, "User", "carol@example.com",
+            new { Email = "carol@example.com", GivenName = "Carol", FamilyName = "Lin", IsActive = true },
+            new { Email = "carol.lin@example.com", GivenName = "Carol", FamilyName = "Lin", IsActive = true }),
+
+        new(Guid.NewGuid(), Now.AddHours(-5), "system@audit", AuditAction.Updated, "User", "dave@example.com",
+            new { Email = "dave@example.com", GivenName = "Dave", FamilyName = "Park", IsActive = true },
+            new { Email = "dave@example.com", GivenName = "Dave", FamilyName = "Park", IsActive = false }),
+
+        new(Guid.NewGuid(), Now.AddHours(-9), "alice@example.com", AuditAction.Deleted, "User", "mallory@example.com",
+            new { Email = "mallory@example.com", GivenName = "Mallory", FamilyName = "Knox", IsActive = false },
+            null),
+
+        new(Guid.NewGuid(), Now.AddDays(-1), "bob@example.com", AuditAction.Updated, "User", "bob@example.com",
+            new { Email = "bob@example.com", GivenName = "", FamilyName = "Wexler", IsActive = true },
+            new { Email = "bob@example.com", GivenName = "Bob", FamilyName = "Wexler", IsActive = true }),
+
+        new(Guid.NewGuid(), Now.AddDays(-2), "alice@example.com", AuditAction.Created, "User", "carol@example.com",
+            null,
+            new { Email = "carol@example.com", GivenName = "Carol", FamilyName = "Lin", IsActive = true }),
+
+        new(Guid.NewGuid(), Now.AddDays(-3), "alice@example.com", AuditAction.Created, "User", "bob@example.com",
+            null,
+            new { Email = "bob@example.com", GivenName = "Bob", FamilyName = "", IsActive = true }),
+    };
+}
