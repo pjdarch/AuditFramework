@@ -20,16 +20,17 @@ public class UserWorkflow : IUserWorkflow
     public async Task RunAsync(Guid userId, UserProfileState? initialState = null)
     {
         if (initialState is not null)
-        {
             _state = initialState;
-        }
         else
-        {
             _state.UserId = userId;
-        }
 
+        // Wait until ContinueAsNew is warranted AND every update handler has completed.
+        // AllHandlersFinished prevents cutting off an in-flight update mid-execution.
+        // ContinueAsNewSuggested is the server-side signal (history approaching Temporal limits).
+        // The manual threshold is a secondary guard useful for demos and tests.
         await Workflow.WaitConditionAsync(
-            () => _updateCount >= ContinueAsNewThreshold,
+            () => (Workflow.ContinueAsNewSuggested || _updateCount >= ContinueAsNewThreshold)
+                  && Workflow.AllHandlersFinished,
             Timeout.InfiniteTimeSpan);
 
         throw Workflow.CreateContinueAsNewException<IUserWorkflow>(
