@@ -9,5 +9,8 @@ public interface IUserWorkflow
     Task RunAsync(Guid userId, UserProfileState? initialState = null);
 
     [WorkflowUpdate]
+    Task<UserProfileState> CreateUserAsync(CreateUserRequest request);
+
+    [WorkflowUpdate]
     Task<UserProfileState> UpdateProfileAsync(UpdateUserProfileRequest request);
 }

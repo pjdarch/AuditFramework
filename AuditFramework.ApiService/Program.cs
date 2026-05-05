@@ -103,61 +103,42 @@ app.MapPost("/users", async (
     ITemporalClient client) =>
 {
     if (!ctx.Request.Headers.TryGetValue("X-User-Id", out var actorIdHeader) ||
-        !Guid.TryParse(actorIdHeader, out _))
+        !Guid.TryParse(actorIdHeader, out var actorId))
         return Results.Problem("X-User-Id header is required", statusCode: 401);
 
-    if (ctx.Request.Headers["X-User-Role"].ToString() != "admin")
+    var actorRole = ctx.Request.Headers["X-User-Role"].ToString();
+    if (actorRole != "admin")
         return Results.Problem("Only admins can create users", statusCode: 403);
 
     if (string.IsNullOrWhiteSpace(body.Email) || string.IsNullOrWhiteSpace(body.Name))
         return Results.Problem("Email and Name are required", statusCode: 400);
 
+    // Guard against duplicate email before touching Identity
     if (await db.Users.AnyAsync(u => u.Email == body.Email))
         return Results.Problem($"Email '{body.Email}' is already taken", statusCode: 409);
 
-    // Create Identity user first (validates password strength + email uniqueness)
-    var identityUser = new ApplicationUser
-    {
-        UserName = body.Email,
-        Email = body.Email,
-        EmailConfirmed = true,
-    };
+    // Create Identity user (validates password strength)
+    var identityUser = new ApplicationUser { UserName = body.Email, Email = body.Email, EmailConfirmed = true };
     var identityResult = await userManager.CreateAsync(identityUser, body.Password ?? "Demo@1234");
     if (!identityResult.Succeeded)
         return Results.Problem(
             string.Join("; ", identityResult.Errors.Select(e => e.Description)),
             statusCode: 400);
 
-    // Create domain user
+    // Start the entity workflow for the new user (state is empty — CreateUser update sets it)
     var userId = Guid.CreateVersion7();
-    var now = DateTimeOffset.UtcNow;
-    var user = new User
-    {
-        Id = userId,
-        Email = body.Email,
-        Name = body.Name,
-        Bio = body.Bio,
-        Role = body.Role is "admin" or "user" ? body.Role : "user",
-        CreatedAt = now,
-        UpdatedAt = now,
-    };
-    db.Users.Add(user);
-    await db.SaveChangesAsync();
-
-    // Bootstrap the Temporal entity workflow for the new user
-    var initialState = new UserProfileState
-    {
-        UserId = userId,
-        Email  = user.Email,
-        Name   = user.Name,
-        Bio    = user.Bio,
-        Role   = user.Role,
-    };
     await client.StartWorkflowAsync(
-        (IUserWorkflow wf) => wf.RunAsync(userId, initialState),
+        (IUserWorkflow wf) => wf.RunAsync(userId, null),
         new WorkflowOptions { Id = $"user-{userId}", TaskQueue = TemporalConstants.TaskQueue });
 
-    return Results.Created($"/users/{userId}/profile", user);
+    // Route domain user creation + audit event through the workflow
+    var handle = client.GetWorkflowHandle($"user-{userId}");
+    var role = body.Role is "admin" or "user" ? body.Role : "user";
+    var createdState = await handle.ExecuteUpdateAsync<UserProfileState>(
+        "CreateUser",
+        [new CreateUserRequest(actorId, actorRole, userId, body.Email, body.Name, body.Bio, role)]);
+
+    return Results.Created($"/users/{userId}/profile", createdState);
 });
 
 // GET /audit/events?resourceId=optional

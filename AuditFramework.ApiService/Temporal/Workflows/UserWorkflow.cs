@@ -37,6 +37,38 @@ public class UserWorkflow : IUserWorkflow
     }
 
     [WorkflowUpdate]
+    public async Task<UserProfileState> CreateUserAsync(CreateUserRequest request)
+    {
+        // Initialize state from the creation request
+        _state.UserId = request.NewUserId;
+        _state.Email  = request.Email;
+        _state.Name   = request.Name;
+        _state.Bio    = request.Bio;
+        _state.Role   = request.Role;
+
+        // Persist to DB (INSERT path in SaveUserStateActivity)
+        await Workflow.ExecuteActivityAsync(
+            (SaveUserStateActivity a) => a.ExecuteAsync(new SaveUserStateRequest(
+                _state.UserId, _state.Email, _state.Name, _state.Bio, _state.Role)),
+            DefaultActivityOptions);
+
+        // Audit event — old_resource is null (no prior state on creation)
+        await Workflow.ExecuteActivityAsync(
+            (WriteAuditEventActivity a) => a.ExecuteAsync(new WriteAuditEventRequest(
+                request.ActorId,
+                "user.created",
+                "user",
+                _state.UserId,
+                null,
+                _state.Clone(),
+                new { request.ActorRole })),
+            DefaultActivityOptions);
+
+        _updateCount++;
+        return _state.Clone();
+    }
+
+    [WorkflowUpdate]
     public async Task<UserProfileState> UpdateProfileAsync(UpdateUserProfileRequest request)
     {
         var oldState = _state.Clone();
