@@ -93,6 +93,72 @@ app.MapProfileEndpoints();
 app.MapGet("/users", async (AuditDbContext db) =>
     Results.Ok(await db.Users.OrderBy(u => u.Name).ToListAsync()));
 
+// POST /users — create a new user (admin only)
+app.MapPost("/users", async (
+    CreateUserBody body,
+    HttpContext ctx,
+    AuditDbContext db,
+    UserManager<ApplicationUser> userManager,
+    ITemporalClient client) =>
+{
+    if (!ctx.Request.Headers.TryGetValue("X-User-Id", out var actorIdHeader) ||
+        !Guid.TryParse(actorIdHeader, out _))
+        return Results.Problem("X-User-Id header is required", statusCode: 401);
+
+    if (ctx.Request.Headers["X-User-Role"].ToString() != "admin")
+        return Results.Problem("Only admins can create users", statusCode: 403);
+
+    if (string.IsNullOrWhiteSpace(body.Email) || string.IsNullOrWhiteSpace(body.Name))
+        return Results.Problem("Email and Name are required", statusCode: 400);
+
+    if (await db.Users.AnyAsync(u => u.Email == body.Email))
+        return Results.Problem($"Email '{body.Email}' is already taken", statusCode: 409);
+
+    // Create Identity user first (validates password strength + email uniqueness)
+    var identityUser = new ApplicationUser
+    {
+        UserName = body.Email,
+        Email = body.Email,
+        EmailConfirmed = true,
+    };
+    var identityResult = await userManager.CreateAsync(identityUser, body.Password ?? "Demo@1234");
+    if (!identityResult.Succeeded)
+        return Results.Problem(
+            string.Join("; ", identityResult.Errors.Select(e => e.Description)),
+            statusCode: 400);
+
+    // Create domain user
+    var userId = Guid.CreateVersion7();
+    var now = DateTimeOffset.UtcNow;
+    var user = new User
+    {
+        Id = userId,
+        Email = body.Email,
+        Name = body.Name,
+        Bio = body.Bio,
+        Role = body.Role is "admin" or "user" ? body.Role : "user",
+        CreatedAt = now,
+        UpdatedAt = now,
+    };
+    db.Users.Add(user);
+    await db.SaveChangesAsync();
+
+    // Bootstrap the Temporal entity workflow for the new user
+    var initialState = new UserProfileState
+    {
+        UserId = userId,
+        Email  = user.Email,
+        Name   = user.Name,
+        Bio    = user.Bio,
+        Role   = user.Role,
+    };
+    await client.StartWorkflowAsync(
+        (IUserWorkflow wf) => wf.RunAsync(userId, initialState),
+        new WorkflowOptions { Id = $"user-{userId}", TaskQueue = TemporalConstants.TaskQueue });
+
+    return Results.Created($"/users/{userId}/profile", user);
+});
+
 // GET /audit/events?resourceId=optional
 app.MapGet("/audit/events", async (Guid? resourceId, AuditDbContext db) =>
 {
@@ -183,3 +249,4 @@ app.MapDefaultEndpoints();
 app.Run();
 
 record UpdateProfileBody(string? Name, string? Bio, string? Email, string? Role);
+record CreateUserBody(string Email, string Name, string? Bio, string? Role, string? Password);

@@ -8,6 +8,28 @@ public class TemporalProfileApiClient(HttpClient httpClient)
     public async Task<List<UserProfile>> GetUsersAsync(CancellationToken ct = default) =>
         await httpClient.GetFromJsonAsync<List<UserProfile>>("/users", ct) ?? [];
 
+    public async Task<(bool ok, string? error, UserProfile? user)> CreateUserAsync(
+        Guid actorId, string actorRole,
+        string email, string name, string? bio, string role, string password,
+        CancellationToken ct = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/users")
+        {
+            Content = JsonContent.Create(new { email, name, bio, role, password })
+        };
+        request.Headers.Add("X-User-Id", actorId.ToString());
+        request.Headers.Add("X-User-Role", actorRole);
+
+        var response = await httpClient.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            return (false, string.IsNullOrWhiteSpace(body) ? response.ReasonPhrase : body, null);
+        }
+        var user = await response.Content.ReadFromJsonAsync<UserProfile>(ct);
+        return (true, null, user);
+    }
+
     public async Task<List<AuditEventItem>> GetAuditEventsAsync(Guid? resourceId = null, CancellationToken ct = default)
     {
         var url = resourceId.HasValue ? $"/audit/events?resourceId={resourceId}" : "/audit/events";
