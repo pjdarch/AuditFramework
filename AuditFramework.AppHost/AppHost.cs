@@ -35,6 +35,14 @@ var apiService = builder
     .WithEnvironment("Temporal__Address", "temporal:7233")
     .WithHttpHealthCheck("/health");
 
+var temporalGrpc = temporal.GetEndpoint("grpc");
+
+builder
+    .AddProject<Projects.AuditFramework_Worker>("worker")
+    .WithEnvironment("Temporal__Address", ReferenceExpression.Create(
+        $"{temporalGrpc.Property(EndpointProperty.Host)}:{temporalGrpc.Property(EndpointProperty.Port)}"))
+    .WaitFor(temporal);
+
 builder
     .AddProject<Projects.AuditFramework_Web>("webfrontend")
     .WithExternalHttpEndpoints()

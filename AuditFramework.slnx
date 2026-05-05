@@ -4,4 +4,5 @@
   <Project Path="AuditFramework.ServiceDefaults/AuditFramework.ServiceDefaults.csproj" />
   <Project Path="AuditFramework.Tests/AuditFramework.Tests.csproj" />
   <Project Path="AuditFramework.Web/AuditFramework.Web.csproj" />
+  <Project Path="AuditFramework.Worker/AuditFramework.Worker.csproj" />
 </Solution>

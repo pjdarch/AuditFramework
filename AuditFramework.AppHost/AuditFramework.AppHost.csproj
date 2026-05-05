@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AuditFramework.ApiService\AuditFramework.ApiService.csproj" />
     <ProjectReference Include="..\AuditFramework.Web\AuditFramework.Web.csproj" />
+    <ProjectReference Include="..\AuditFramework.Worker\AuditFramework.Worker.csproj" />
   </ItemGroup>
 
   <ItemGroup>
