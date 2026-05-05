@@ -15,6 +15,7 @@ builder.Services.AddOutputCache();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<TokenStore>();
+builder.Services.AddScoped<BrowserAuthSessionStore>();
 builder.Services.AddScoped<AuthenticationStateProvider, CircuitAuthStateProvider>();
 
 builder.Services.AddHttpClient<WeatherApiClient>(client =>

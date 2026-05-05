@@ -4,7 +4,11 @@ using AuditFramework.Web.Auth;
 
 namespace AuditFramework.Web.Services;
 
-public class IdentityApiClient(HttpClient http, TokenStore store)
+public class IdentityApiClient(
+    HttpClient http,
+    TokenStore store,
+    BrowserAuthSessionStore browserAuthSessionStore
+)
 {
     public async Task<(bool ok, string? error)> RegisterAsync(
         string email,
@@ -28,8 +32,8 @@ public class IdentityApiClient(HttpClient http, TokenStore store)
         var token = await resp.Content.ReadFromJsonAsync<LoginResponse>(ct);
         if (token is null)
             return (false, "Empty token response");
-        store.SetTokens(token.AccessToken, token.RefreshToken, token.ExpiresIn);
-        store.SetPrincipal(email);
+        store.SetAuthenticatedSession(token.AccessToken, token.RefreshToken, token.ExpiresIn, email);
+        await browserAuthSessionStore.PersistAsync(ct);
         return (true, null);
     }
 
@@ -48,7 +52,11 @@ public class IdentityApiClient(HttpClient http, TokenStore store)
         return resp.IsSuccessStatusCode ? (true, null) : (false, await ReadErrorAsync(resp, ct));
     }
 
-    public void Logout() => store.Clear();
+    public async Task LogoutAsync(CancellationToken ct = default)
+    {
+        store.Clear();
+        await browserAuthSessionStore.ClearAsync(ct);
+    }
 
     private void AttachAuth(HttpRequestMessage req)
     {

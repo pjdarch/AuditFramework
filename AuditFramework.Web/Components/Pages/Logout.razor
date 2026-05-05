@@ -6,9 +6,9 @@
 <PageTitle>Sign out</PageTitle>
 
 @code {
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        Identity.Logout();
+        await Identity.LogoutAsync();
         Nav.NavigateTo("/login", replace: true);
     }
 }

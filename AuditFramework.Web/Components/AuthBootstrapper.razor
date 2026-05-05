@@ -1,0 +1,25 @@
+@inject BrowserAuthSessionStore BrowserAuthSessionStore
+
+@if (_isReady)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool _isReady;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await BrowserAuthSessionStore.RestoreAsync();
+        _isReady = true;
+        StateHasChanged();
+    }
+}
