@@ -16,14 +16,13 @@ public class ProfileApiClient(HttpClient http, TokenStore store)
     }
 
     public async Task<(bool ok, string? error, ProfileDto? profile)> UpdateAsync(
-        string? firstName,
-        string? lastName,
+        UpdateProfileRequest profile,
         CancellationToken ct = default
     )
     {
         using var req = new HttpRequestMessage(HttpMethod.Put, "/api/profile")
         {
-            Content = JsonContent.Create(new { firstName, lastName }),
+            Content = JsonContent.Create(profile),
         };
         AttachAuth(req);
         var resp = await http.SendAsync(req, ct);
@@ -45,4 +44,29 @@ public class ProfileApiClient(HttpClient http, TokenStore store)
     }
 }
 
-public record ProfileDto(string? Email, string? FirstName, string? LastName);
+public record ProfileDto(
+    string? Email,
+    string? FirstName,
+    string? LastName,
+    string? PhoneNumber,
+    DateOnly? DateOfBirth,
+    string? AddressLine1,
+    string? AddressLine2,
+    string? City,
+    string? StateOrProvince,
+    string? PostalCode,
+    string? Country
+);
+
+public record UpdateProfileRequest(
+    string? FirstName,
+    string? LastName,
+    string? PhoneNumber,
+    DateOnly? DateOfBirth,
+    string? AddressLine1,
+    string? AddressLine2,
+    string? City,
+    string? StateOrProvince,
+    string? PostalCode,
+    string? Country
+);

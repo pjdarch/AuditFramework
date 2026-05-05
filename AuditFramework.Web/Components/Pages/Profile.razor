@@ -3,6 +3,7 @@
 @inject ProfileApiClient Api
 @inject AuthenticationStateProvider AuthProvider
 @inject NavigationManager Nav
+@using System.ComponentModel.DataAnnotations
 
 <PageTitle>Profile</PageTitle>
 
@@ -27,6 +28,43 @@ else
         <div class="mb-3">
             <label class="form-label">Last name</label>
             <InputText class="form-control" @bind-Value="model.LastName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Phone number</label>
+            <InputText class="form-control" @bind-Value="model.PhoneNumber" autocomplete="tel" />
+            <ValidationMessage For="@(() => model.PhoneNumber)" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Date of birth</label>
+            <InputDate class="form-control" @bind-Value="model.DateOfBirth" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Address line 1</label>
+            <InputText class="form-control" @bind-Value="model.AddressLine1" autocomplete="address-line1" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Address line 2</label>
+            <InputText class="form-control" @bind-Value="model.AddressLine2" autocomplete="address-line2" />
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label">City</label>
+                <InputText class="form-control" @bind-Value="model.City" autocomplete="address-level2" />
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">State / Province</label>
+                <InputText class="form-control" @bind-Value="model.StateOrProvince" autocomplete="address-level1" />
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label">Postal code</label>
+                <InputText class="form-control" @bind-Value="model.PostalCode" autocomplete="postal-code" />
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label">Country</label>
+                <InputText class="form-control" @bind-Value="model.Country" autocomplete="country-name" />
+            </div>
         </div>
         @if (!string.IsNullOrEmpty(message))
         {
@@ -66,6 +104,14 @@ else
                     Email = dto.Email ?? "",
                     FirstName = dto.FirstName ?? "",
                     LastName = dto.LastName ?? "",
+                    PhoneNumber = dto.PhoneNumber ?? "",
+                    DateOfBirth = dto.DateOfBirth,
+                    AddressLine1 = dto.AddressLine1 ?? "",
+                    AddressLine2 = dto.AddressLine2 ?? "",
+                    City = dto.City ?? "",
+                    StateOrProvince = dto.StateOrProvince ?? "",
+                    PostalCode = dto.PostalCode ?? "",
+                    Country = dto.Country ?? "",
                 };
             }
         }
@@ -76,13 +122,34 @@ else
     private async Task Save()
     {
         busy = true; message = null; error = null;
-        var (ok, err, dto) = await Api.UpdateAsync(model.FirstName, model.LastName);
+        var (ok, err, dto) = await Api.UpdateAsync(
+            new UpdateProfileRequest(
+                model.FirstName,
+                model.LastName,
+                model.PhoneNumber,
+                model.DateOfBirth,
+                model.AddressLine1,
+                model.AddressLine2,
+                model.City,
+                model.StateOrProvince,
+                model.PostalCode,
+                model.Country
+            )
+        );
         busy = false;
         if (!ok) { error = err ?? "Update failed."; return; }
         if (dto is not null)
         {
             model.FirstName = dto.FirstName ?? "";
             model.LastName = dto.LastName ?? "";
+            model.PhoneNumber = dto.PhoneNumber ?? "";
+            model.DateOfBirth = dto.DateOfBirth;
+            model.AddressLine1 = dto.AddressLine1 ?? "";
+            model.AddressLine2 = dto.AddressLine2 ?? "";
+            model.City = dto.City ?? "";
+            model.StateOrProvince = dto.StateOrProvince ?? "";
+            model.PostalCode = dto.PostalCode ?? "";
+            model.Country = dto.Country ?? "";
         }
         message = "Profile saved.";
     }
@@ -92,5 +159,14 @@ else
         public string Email { get; set; } = "";
         public string FirstName { get; set; } = "";
         public string LastName { get; set; } = "";
+        [Phone]
+        public string PhoneNumber { get; set; } = "";
+        public DateOnly? DateOfBirth { get; set; }
+        public string AddressLine1 { get; set; } = "";
+        public string AddressLine2 { get; set; } = "";
+        public string City { get; set; } = "";
+        public string StateOrProvince { get; set; } = "";
+        public string PostalCode { get; set; } = "";
+        public string Country { get; set; } = "";
     }
 }
