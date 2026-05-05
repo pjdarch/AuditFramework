@@ -1,7 +1,7 @@
 @page "/"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
-<PageTitle>AuditFramework</PageTitle>
+<PageTitle>Temporal Audit Framework</PageTitle>
 
 <AuthorizeView>
     <Authorized>
@@ -12,16 +12,33 @@
                 <a class="btn btn-primary" href="/profile">My profile</a>
                 <a class="btn btn-outline-secondary" href="/account/security">Security</a>
             </div>
+            <a class="replay-banner" href="https://replay.temporal.io/" target="_blank" rel="noopener noreferrer">
+                <img src="temporal-logo-yellow.svg" alt="" width="32" height="32" class="replay-icon" />
+                <span>
+                    <span class="replay-label">Temporal Event</span>
+                    <span class="replay-text">Replay — The conference for durable execution &amp; Temporal developers</span>
+                </span>
+                <span class="replay-link">replay.temporal.io &#8599;</span>
+            </a>
         </div>
     </Authorized>
     <NotAuthorized>
         <div class="hero hero-center">
-            <h1>AuditFramework</h1>
+            <img src="temporal-logo-white.svg" alt="Temporal" width="56" height="56" class="mb-3" />
+            <h1>Temporal Audit</h1>
             <p class="lead text-muted mb-4">Sign in to manage your profile and audit data.</p>
             <div class="d-flex gap-2 justify-content-center">
                 <a class="btn btn-primary btn-lg px-4" href="/login">Sign in</a>
                 <a class="btn btn-outline-secondary btn-lg px-4" href="/register">Create account</a>
             </div>
+            <a class="replay-banner mt-4" href="https://replay.temporal.io/" target="_blank" rel="noopener noreferrer">
+                <img src="temporal-logo-yellow.svg" alt="" width="32" height="32" class="replay-icon" />
+                <span>
+                    <span class="replay-label">Temporal Event</span>
+                    <span class="replay-text">Replay — The conference for durable execution &amp; Temporal developers</span>
+                </span>
+                <span class="replay-link">replay.temporal.io &#8599;</span>
+            </a>
         </div>
     </NotAuthorized>
 </AuthorizeView>
@@ -38,5 +55,51 @@
     .hero h1 {
         font-size: 2.5rem;
         margin-bottom: 0.75rem;
+    }
+
+    .replay-banner {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-top: 2.5rem;
+        padding: 0.85rem 1.25rem;
+        border-radius: 0.6rem;
+        background: linear-gradient(135deg, rgba(10,10,10,0.85) 0%, rgba(30,27,46,0.85) 100%);
+        border: 1px solid rgba(219,255,75,0.35);
+        font-size: 0.9rem;
+        color: #e8e8e8;
+        text-decoration: none;
+        transition: border-color 0.15s, background 0.15s;
+    }
+
+    .replay-banner:hover {
+        border-color: #dbff4b;
+        background: linear-gradient(135deg, rgba(10,10,10,0.95) 0%, rgba(30,27,46,0.95) 100%);
+        text-decoration: none;
+    }
+
+    .replay-banner .replay-icon {
+        flex-shrink: 0;
+    }
+
+    .replay-banner .replay-label {
+        font-weight: 600;
+        color: #dbff4b;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        display: block;
+    }
+
+    .replay-banner .replay-text {
+        display: block;
+        line-height: 1.3;
+    }
+
+    .replay-banner .replay-link {
+        margin-left: auto;
+        font-size: 0.8rem;
+        color: #dbff4b;
+        white-space: nowrap;
     }
 </style>

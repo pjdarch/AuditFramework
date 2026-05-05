@@ -1,0 +1,9 @@
+.audit-detail {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.audit-pre {
+    background-color: rgba(0, 0, 0, 0.25);
+    color: #d4d4d4;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}

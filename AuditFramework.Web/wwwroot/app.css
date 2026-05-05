@@ -1,19 +1,22 @@
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color-scheme: dark;
+    background-color: #0f0f17;
+    color: #e8e8ec;
 }
 
 a, .btn-link {
-    color: #006bb7;
+    color: #5165EB;
 }
 
 .btn-primary {
     color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background-color: #5165EB;
+    border-color: #3f51d6;
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem rgba(81, 101, 235, 0.5);
 }
 
 .content {

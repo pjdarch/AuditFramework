@@ -72,7 +72,7 @@ else
                     </button>
                     @if (isOpen)
                     {
-                        <div class="border-top p-3 bg-light">
+                        <div class="border-top p-3 audit-detail">
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <h6 class="text-muted text-uppercase small">Before</h6>
@@ -82,12 +82,12 @@ else
                                     }
                                     else
                                     {
-                                        <pre class="bg-white border rounded p-2 mb-0" style="font-size:.8rem"><code>@PrettyJson(ev.OldResource.Value)</code></pre>
+                                        <pre class="audit-pre border rounded p-2 mb-0" style="font-size:.8rem"><code>@PrettyJson(ev.OldResource.Value)</code></pre>
                                     }
                                 </div>
                                 <div class="col-md-6">
                                     <h6 class="text-muted text-uppercase small">After</h6>
-                                    <pre class="bg-white border rounded p-2 mb-0" style="font-size:.8rem"><code>@PrettyJson(ev.NewResource)</code></pre>
+                                    <pre class="audit-pre border rounded p-2 mb-0" style="font-size:.8rem"><code>@PrettyJson(ev.NewResource)</code></pre>
                                 </div>
                             </div>
                         </div>

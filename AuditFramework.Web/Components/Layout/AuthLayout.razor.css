@@ -48,7 +48,7 @@
 
 ::deep .auth-card .form-control:focus {
     background: rgba(255, 255, 255, 0.08);
-    border-color: #6c8cff;
+    border-color: #5165EB;
     color: #fff;
-    box-shadow: 0 0 0 0.2rem rgba(108, 140, 255, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(81, 101, 235, 0.3);
 }
