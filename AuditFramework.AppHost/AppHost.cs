@@ -32,13 +32,9 @@ var apiService = builder
     .AddProject<Projects.AuditFramework_ApiService>("apiservice")
     .WithReference(auditDb)
     .WaitFor(auditDb)
+    .WaitFor(temporal)
     .WithEnvironment("Temporal__Address", "temporal:7233")
     .WithHttpHealthCheck("/health");
-
-builder
-    .AddProject<Projects.AuditFramework_Worker>("worker")
-    .WithEnvironment("Temporal__Address", temporal.GetEndpoint("grpc").Property(EndpointProperty.HostAndPort))
-    .WaitFor(temporal);
 
 builder
     .AddProject<Projects.AuditFramework_Web>("webfrontend")

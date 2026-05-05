@@ -28,6 +28,10 @@ partial class AuditDbContextModelSnapshot : ModelSnapshot
             b.Property<string>("Metadata").HasColumnType("jsonb").HasColumnName("metadata");
             b.Property<DateTimeOffset>("OccurredAt").HasColumnType("timestamp with time zone").HasColumnName("occurred_at");
             b.HasKey("Id");
+            b.HasIndex("ActorId")
+                .HasDatabaseName("idx_audit_events_actor");
+            b.HasIndex("ResourceId", "OccurredAt")
+                .HasDatabaseName("idx_audit_events_resource");
             b.ToTable("events", "audit");
         });
 

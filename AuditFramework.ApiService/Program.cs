@@ -21,7 +21,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Audit DbContext (Temporal entity tracking + audit events)
 builder.Services.AddDbContext<AuditDbContext>(opts =>
-    opts.UseNpgsql(builder.Configuration.GetConnectionString("auditdb")));
+    opts.UseNpgsql(builder.Configuration.GetConnectionString("auditdb"))
+        .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
 // Identity auth (Bearer tokens)
 builder.Services.AddAuthorization();
