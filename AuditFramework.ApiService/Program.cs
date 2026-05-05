@@ -58,17 +58,66 @@ if (app.Environment.IsDevelopment())
 // Migrate and seed on startup
 await using (var scope = app.Services.CreateAsyncScope())
 {
+    // Identity schema — EnsureCreated (no EF migrations needed for demo)
     var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await appDb.Database.MigrateAsync();
+    await appDb.Database.EnsureCreatedAsync();
 
+    // Seed demo Identity users
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    await SeedIdentityUsersAsync(userManager);
+
+    // Audit schema — apply managed migrations + seed domain users
     var auditDb = scope.ServiceProvider.GetRequiredService<AuditDbContext>();
     await auditDb.Database.MigrateAsync();
     await DataSeeder.SeedAsync(auditDb);
 }
 
+static async Task SeedIdentityUsersAsync(UserManager<ApplicationUser> userManager)
+{
+    var demos = DataSeeder.AllEmails.Select(e => (Email: e, Password: "Demo@1234")).ToArray();
+    foreach (var (email, password) in demos)
+    {
+        if (await userManager.FindByEmailAsync(email) is null)
+        {
+            var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true };
+            await userManager.CreateAsync(user, password);
+        }
+    }
+}
+
 // Identity endpoints (login, register, manage)
 app.MapIdentityApi<ApplicationUser>();
 app.MapProfileEndpoints();
+
+// GET /users — list all users (admin use)
+app.MapGet("/users", async (AuditDbContext db) =>
+    Results.Ok(await db.Users.OrderBy(u => u.Name).ToListAsync()));
+
+// GET /audit/events?resourceId=optional
+app.MapGet("/audit/events", async (Guid? resourceId, AuditDbContext db) =>
+{
+    var query = db.Events.AsQueryable();
+    if (resourceId.HasValue)
+        query = query.Where(e => e.ResourceId == resourceId.Value);
+
+    var events = await query
+        .OrderByDescending(e => e.OccurredAt)
+        .Take(200)
+        .ToListAsync();
+
+    return Results.Ok(events.Select(e => new
+    {
+        e.Id,
+        e.ActorId,
+        e.Action,
+        e.ResourceType,
+        e.ResourceId,
+        OldResource = e.OldResource == null ? (object?)null : e.OldResource.RootElement,
+        NewResource = (object)e.NewResource.RootElement,
+        Metadata    = e.Metadata == null ? (object?)null : e.Metadata.RootElement,
+        e.OccurredAt,
+    }));
+});
 
 // GET /users/{userId}/profile
 app.MapGet("/users/{userId:guid}/profile", async (Guid userId, AuditDbContext db) =>
@@ -82,7 +131,8 @@ app.MapPatch("/users/{userId:guid}/profile", async (
     Guid userId,
     UpdateProfileBody body,
     HttpContext ctx,
-    ITemporalClient client) =>
+    ITemporalClient client,
+    AuditDbContext db) =>
 {
     if (!ctx.Request.Headers.TryGetValue("X-User-Id", out var actorIdHeader) ||
         !Guid.TryParse(actorIdHeader, out var actorId))
@@ -95,10 +145,21 @@ app.MapPatch("/users/{userId:guid}/profile", async (
 
     var workflowId = $"user-{userId}";
 
+    // Seed the workflow with current DB state so the first update has correct email/role
+    var existing = await db.Users.FindAsync(userId);
+    var initialState = existing is null ? null : new UserProfileState
+    {
+        UserId = existing.Id,
+        Email = existing.Email,
+        Name = existing.Name,
+        Bio = existing.Bio,
+        Role = existing.Role,
+    };
+
     try
     {
         await client.StartWorkflowAsync(
-            (IUserWorkflow wf) => wf.RunAsync(userId, null),
+            (IUserWorkflow wf) => wf.RunAsync(userId, initialState),
             new WorkflowOptions
             {
                 Id = workflowId,
@@ -108,8 +169,9 @@ app.MapPatch("/users/{userId:guid}/profile", async (
     catch (WorkflowAlreadyStartedException) { }
 
     var handle = client.GetWorkflowHandle(workflowId);
+    // Note: Temporal .NET SDK strips "Async" from method names → "UpdateProfileAsync" → "UpdateProfile"
     var updatedState = await handle.ExecuteUpdateAsync<UserProfileState>(
-        "UpdateProfileAsync",
+        "UpdateProfile",
         [new UpdateUserProfileRequest(actorId, actorRole, body.Name, body.Bio)]);
 
     return Results.Ok(updatedState);

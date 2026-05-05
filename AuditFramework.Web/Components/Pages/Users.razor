@@ -1,0 +1,73 @@
+@page "/users"
+@rendermode InteractiveServer
+@inject TemporalProfileApiClient Api
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Nav
+
+<PageTitle>Users</PageTitle>
+
+<h1>Users</h1>
+
+@if (!isAdmin)
+{
+    <div class="alert alert-warning">You need admin access to view this page.</div>
+}
+else if (users is null)
+{
+    <p><em>Loading users...</em></p>
+}
+else
+{
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Last Updated</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in users)
+            {
+                <tr>
+                    <td>@user.Name</td>
+                    <td>@user.Email</td>
+                    <td>
+                        <span class="badge bg-@(user.Role == "admin" ? "danger" : "secondary")">
+                            @user.Role
+                        </span>
+                    </td>
+                    <td>@user.UpdatedAt.ToLocalTime().ToString("g")</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary"
+                                @onclick="() => EditUser(user.Id)">
+                            Edit Profile
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool isAdmin;
+    private List<UserProfile>? users;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        var email = state.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        isAdmin = email == "admin@example.com";
+
+        if (!isAdmin) return;
+
+        try { users = await Api.GetUsersAsync(); }
+        catch { users = []; }
+    }
+
+    private void EditUser(Guid userId) =>
+        Nav.NavigateTo($"/profile?userId={userId}");
+}

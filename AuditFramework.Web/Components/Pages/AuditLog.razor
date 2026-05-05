@@ -1,80 +1,137 @@
 @page "/audit"
 @rendermode InteractiveServer
+@inject TemporalProfileApiClient Api
+@inject AuthenticationStateProvider AuthProvider
 @using System.Text.Json
 
 <PageTitle>Audit Log</PageTitle>
 
 <h1 class="mb-4">Audit Log</h1>
-<p class="text-muted">Recent changes recorded across audited entities.</p>
 
-<div class="list-group">
-    @foreach (var entry in entries)
-    {
-        var isOpen = expanded.Contains(entry.Id);
-        <div class="list-group-item p-0">
-            <button type="button"
-                    class="btn w-100 text-start p-3 d-flex justify-content-between align-items-center"
-                    @onclick="() => Toggle(entry.Id)"
-                    aria-expanded="@isOpen.ToString().ToLowerInvariant()">
-                <span>
-                    <strong>@entry.Actor</strong>
-                    <span class="text-muted">@ActionVerb(entry.Action)</span>
-                    @entry.ResourceType
-                    <code>@entry.ResourceLabel</code>
-                </span>
-                <span class="d-flex align-items-center gap-3">
-                    <small class="text-muted">@FormatRelative(entry.Timestamp)</small>
-                    <span class="bi @(isOpen ? "bi-chevron-up" : "bi-chevron-down")" aria-hidden="true"></span>
-                </span>
+@if (!isAuthenticated)
+{
+    <div class="alert alert-info">Please <a href="/login">sign in</a> to view the audit log.</div>
+}
+else
+{
+    <div class="d-flex gap-3 align-items-center mb-4">
+        <div>
+            <label class="form-label mb-1">Filter by user</label>
+            <select class="form-select" style="min-width:240px"
+                    @bind="selectedResourceId" @bind:after="LoadEvents">
+                <option value="">All users</option>
+                @foreach (var u in users)
+                {
+                    <option value="@u.Id">@u.Name (@u.Email)</option>
+                }
+            </select>
+        </div>
+        <div class="align-self-end">
+            <button class="btn btn-outline-secondary" @onclick="LoadEvents">
+                <span class="bi bi-arrow-clockwise"></span> Refresh
             </button>
-            @if (isOpen)
+        </div>
+    </div>
+
+    @if (events is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else if (events.Count == 0)
+    {
+        <p class="text-muted">No audit events yet. Edit a user profile to generate one.</p>
+    }
+    else
+    {
+        <p class="text-muted small mb-2">
+            Showing @events.Count most recent events.
+            Full history also in <a href="http://localhost:8233" target="_blank">Temporal UI</a>.
+        </p>
+        <div class="list-group">
+            @foreach (var ev in events)
             {
-                <div class="border-top p-3 bg-light">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <h6 class="text-muted text-uppercase small">Old</h6>
-                            @if (entry.OldState is null)
-                            {
-                                <p class="text-muted fst-italic mb-0">— none —</p>
-                            }
-                            else
-                            {
-                                <pre class="bg-white border rounded p-2 mb-0"><code>@ToJson(entry.OldState)</code></pre>
-                            }
+                var isOpen = expanded.Contains(ev.Id);
+                var actor  = LookupEmail(ev.ActorId);
+                var target = LookupEmail(ev.ResourceId);
+
+                <div class="list-group-item p-0">
+                    <button type="button"
+                            class="btn w-100 text-start p-3 d-flex justify-content-between align-items-center"
+                            @onclick="() => Toggle(ev.Id)"
+                            aria-expanded="@isOpen.ToString().ToLowerInvariant()">
+                        <span>
+                            <strong>@actor</strong>
+                            <span class="text-muted"> updated </span>
+                            <code>@target</code>
+                        </span>
+                        <span class="d-flex align-items-center gap-3">
+                            <span class="badge bg-primary bg-opacity-75">@ev.Action</span>
+                            <small class="text-muted">@FormatRelative(ev.OccurredAt)</small>
+                            <span class="bi @(isOpen ? "bi-chevron-up" : "bi-chevron-down")" aria-hidden="true"></span>
+                        </span>
+                    </button>
+                    @if (isOpen)
+                    {
+                        <div class="border-top p-3 bg-light">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <h6 class="text-muted text-uppercase small">Before</h6>
+                                    @if (ev.OldResource is null || ev.OldResource.Value.ValueKind == JsonValueKind.Null)
+                                    {
+                                        <p class="text-muted fst-italic mb-0">— first event, no prior state —</p>
+                                    }
+                                    else
+                                    {
+                                        <pre class="bg-white border rounded p-2 mb-0" style="font-size:.8rem"><code>@PrettyJson(ev.OldResource.Value)</code></pre>
+                                    }
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="text-muted text-uppercase small">After</h6>
+                                    <pre class="bg-white border rounded p-2 mb-0" style="font-size:.8rem"><code>@PrettyJson(ev.NewResource)</code></pre>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <h6 class="text-muted text-uppercase small">New</h6>
-                            @if (entry.NewState is null)
-                            {
-                                <p class="text-muted fst-italic mb-0">— none —</p>
-                            }
-                            else
-                            {
-                                <pre class="bg-white border rounded p-2 mb-0"><code>@ToJson(entry.NewState)</code></pre>
-                            }
-                        </div>
-                    </div>
+                    }
                 </div>
             }
         </div>
     }
-</div>
+}
 
 @code {
-    private readonly HashSet<Guid> expanded = new();
+    private bool isAuthenticated;
+    private string selectedResourceId = "";
+    private List<AuditEventItem>? events;
+    private List<UserProfile> users = [];
+    private Dictionary<Guid, string> emailLookup = [];
+    private readonly HashSet<Guid> expanded = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        isAuthenticated = state.User.Identity?.IsAuthenticated ?? false;
+        if (!isAuthenticated) return;
+
+        users = await Api.GetUsersAsync();
+        emailLookup = users.ToDictionary(u => u.Id, u => u.Email);
+        await LoadEvents();
+    }
+
+    private async Task LoadEvents()
+    {
+        events = null;
+        var id = Guid.TryParse(selectedResourceId, out var g) ? g : (Guid?)null;
+        try { events = await Api.GetAuditEventsAsync(id); }
+        catch { events = []; }
+    }
 
     private void Toggle(Guid id)
     {
         if (!expanded.Add(id)) expanded.Remove(id);
     }
 
-    private static string ActionVerb(AuditAction action) => action switch
-    {
-        AuditAction.Created => " created ",
-        AuditAction.Updated => " updated ",
-        AuditAction.Deleted => " deleted ",
-        _ => " changed "
-    };
+    private string LookupEmail(Guid id) =>
+        emailLookup.TryGetValue(id, out var email) ? email : id.ToString()[..8] + "…";
 
     private static string FormatRelative(DateTimeOffset ts)
     {
@@ -86,54 +143,10 @@
     }
 
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
-    private static string ToJson(object value) => JsonSerializer.Serialize(value, JsonOpts);
 
-    public enum AuditAction { Created, Updated, Deleted }
-
-    public record AuditEntry(
-        Guid Id,
-        DateTimeOffset Timestamp,
-        string Actor,
-        AuditAction Action,
-        string ResourceType,
-        string ResourceLabel,
-        object? OldState,
-        object? NewState);
-
-    private static readonly DateTimeOffset Now = DateTimeOffset.UtcNow;
-
-    private readonly List<AuditEntry> entries = new()
+    private static string PrettyJson(JsonElement el)
     {
-        new(Guid.NewGuid(), Now.AddMinutes(-3), "alice@example.com", AuditAction.Created, "User", "eve@example.com",
-            null,
-            new { Email = "eve@example.com", GivenName = "Eve", FamilyName = "Stone", IsActive = true }),
-
-        new(Guid.NewGuid(), Now.AddMinutes(-22), "bob@example.com", AuditAction.Updated, "User", "bob@example.com",
-            new { Email = "bob@example.com", GivenName = "Bob", FamilyName = "", IsActive = true },
-            new { Email = "bob@example.com", GivenName = "Bob", FamilyName = "Wexler", IsActive = true }),
-
-        new(Guid.NewGuid(), Now.AddHours(-2), "alice@example.com", AuditAction.Updated, "User", "carol@example.com",
-            new { Email = "carol@example.com", GivenName = "Carol", FamilyName = "Lin", IsActive = true },
-            new { Email = "carol.lin@example.com", GivenName = "Carol", FamilyName = "Lin", IsActive = true }),
-
-        new(Guid.NewGuid(), Now.AddHours(-5), "system@audit", AuditAction.Updated, "User", "dave@example.com",
-            new { Email = "dave@example.com", GivenName = "Dave", FamilyName = "Park", IsActive = true },
-            new { Email = "dave@example.com", GivenName = "Dave", FamilyName = "Park", IsActive = false }),
-
-        new(Guid.NewGuid(), Now.AddHours(-9), "alice@example.com", AuditAction.Deleted, "User", "mallory@example.com",
-            new { Email = "mallory@example.com", GivenName = "Mallory", FamilyName = "Knox", IsActive = false },
-            null),
-
-        new(Guid.NewGuid(), Now.AddDays(-1), "bob@example.com", AuditAction.Updated, "User", "bob@example.com",
-            new { Email = "bob@example.com", GivenName = "", FamilyName = "Wexler", IsActive = true },
-            new { Email = "bob@example.com", GivenName = "Bob", FamilyName = "Wexler", IsActive = true }),
-
-        new(Guid.NewGuid(), Now.AddDays(-2), "alice@example.com", AuditAction.Created, "User", "carol@example.com",
-            null,
-            new { Email = "carol@example.com", GivenName = "Carol", FamilyName = "Lin", IsActive = true }),
-
-        new(Guid.NewGuid(), Now.AddDays(-3), "alice@example.com", AuditAction.Created, "User", "bob@example.com",
-            null,
-            new { Email = "bob@example.com", GivenName = "Bob", FamilyName = "", IsActive = true }),
-    };
+        try { return JsonSerializer.Serialize(el, JsonOpts); }
+        catch { return el.ToString(); }
+    }
 }
