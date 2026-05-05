@@ -21,11 +21,12 @@ public class TemporalProfileApiClient(HttpClient httpClient)
 
     public async Task<UserProfile?> UpdateProfileAsync(
         Guid userId, Guid actorId, string actorRole,
-        string? name, string? bio, CancellationToken ct = default)
+        string? name, string? bio, string? email, string? role,
+        CancellationToken ct = default)
     {
         var request = new HttpRequestMessage(HttpMethod.Patch, $"/users/{userId}/profile")
         {
-            Content = JsonContent.Create(new { name, bio })
+            Content = JsonContent.Create(new { name, bio, email, role })
         };
         request.Headers.Add("X-User-Id", actorId.ToString());
         request.Headers.Add("X-User-Role", actorRole);

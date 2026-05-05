@@ -38,6 +38,11 @@ else if (profile is not null)
             </p>
 
             <div class="mb-3">
+                <label class="form-label">Email</label>
+                <input class="form-control" type="email" @bind="editEmail" />
+            </div>
+
+            <div class="mb-3">
                 <label class="form-label">Name</label>
                 <input class="form-control" @bind="editName" />
             </div>
@@ -46,6 +51,17 @@ else if (profile is not null)
                 <label class="form-label">Bio</label>
                 <textarea class="form-control" rows="3" @bind="editBio"></textarea>
             </div>
+
+            @if (actorRole == "admin")
+            {
+                <div class="mb-3">
+                    <label class="form-label">Role</label>
+                    <select class="form-select" @bind="editRole">
+                        <option value="user">user</option>
+                        <option value="admin">admin</option>
+                    </select>
+                </div>
+            }
 
             <button class="btn btn-primary" @onclick="SaveProfile" disabled="@isSaving">
                 @(isSaving ? "Saving…" : "Save Changes")
@@ -86,8 +102,10 @@ else if (isError)
     private string actorRole = "user";
     private Guid targetUserId;
     private UserProfile? profile;
+    private string? editEmail;
     private string? editName;
     private string? editBio;
+    private string editRole = "user";
     private bool isSaving;
     private string? message;
     private bool isError;
@@ -134,8 +152,10 @@ else if (isError)
             profile = await ProfileApi.GetProfileAsync(targetUserId);
             if (profile is not null)
             {
-                editName = profile.Name;
-                editBio  = profile.Bio;
+                editEmail = profile.Email;
+                editName  = profile.Name;
+                editBio   = profile.Bio;
+                editRole  = profile.Role;
             }
         }
         catch (Exception ex)
@@ -155,7 +175,7 @@ else if (isError)
         try
         {
             profile = await ProfileApi.UpdateProfileAsync(
-                targetUserId, actorId, actorRole, editName, editBio);
+                targetUserId, actorId, actorRole, editName, editBio, editEmail, editRole);
             message = "Profile updated! Check Temporal UI to see the audit event.";
         }
         catch (Exception ex)

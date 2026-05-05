@@ -33,9 +33,10 @@ public class SaveUserStateActivity(AuditDbContext db)
         }
         else
         {
-            // Only update profile-editable fields; email and role are system-managed
-            existing.Name = request.Name;
+            if (!string.IsNullOrWhiteSpace(request.Email)) existing.Email = request.Email;
+            if (!string.IsNullOrWhiteSpace(request.Name))  existing.Name  = request.Name;
             existing.Bio  = request.Bio;
+            if (!string.IsNullOrWhiteSpace(request.Role))  existing.Role  = request.Role;
             existing.UpdatedAt = DateTimeOffset.UtcNow;
         }
 
