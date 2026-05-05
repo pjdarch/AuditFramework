@@ -1,46 +1,29 @@
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AuditFramework.Web.Auth;
 
 namespace AuditFramework.Web.Services;
 
-public class ProfileApiClient(HttpClient http, TokenStore store)
+public class ProfileApiClient(HttpClient http, TokenStore store, IIdentityErrorParser errorParser)
+    : AuthenticatedApiClientBase(http, store, errorParser), IProfileApiClient
 {
     public async Task<ProfileDto?> GetAsync(CancellationToken ct = default)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/profile");
-        AttachAuth(req);
-        var resp = await http.SendAsync(req, ct);
-        resp.EnsureSuccessStatusCode();
-        return await resp.Content.ReadFromJsonAsync<ProfileDto>(ct);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/profile");
+        AttachAuth(request);
+        var response = await Http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ProfileDto>(ct);
     }
 
     public async Task<(bool ok, string? error, ProfileDto? profile)> UpdateAsync(
         UpdateProfileRequest profile,
-        CancellationToken ct = default
-    )
+        CancellationToken ct = default)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Put, "/api/profile")
+        using var request = new HttpRequestMessage(HttpMethod.Put, "/api/profile")
         {
             Content = JsonContent.Create(profile),
         };
-        AttachAuth(req);
-        var resp = await http.SendAsync(req, ct);
-        if (!resp.IsSuccessStatusCode)
-        {
-            var body = await resp.Content.ReadAsStringAsync(ct);
-            return (false, string.IsNullOrWhiteSpace(body) ? resp.ReasonPhrase : body, null);
-        }
-        var dto = await resp.Content.ReadFromJsonAsync<ProfileDto>(ct);
-        return (true, null, dto);
-    }
-
-    private void AttachAuth(HttpRequestMessage req)
-    {
-        if (!string.IsNullOrEmpty(store.AccessToken))
-        {
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", store.AccessToken);
-        }
+        return await SendAsync<ProfileDto>(request, ct);
     }
 }
 

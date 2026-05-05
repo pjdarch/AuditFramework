@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AuditFramework.Web.Auth;
 
@@ -7,31 +6,34 @@ namespace AuditFramework.Web.Services;
 public class IdentityApiClient(
     HttpClient http,
     TokenStore store,
-    BrowserAuthSessionStore browserAuthSessionStore
-)
+    BrowserAuthSessionStore browserAuthSessionStore,
+    IIdentityErrorParser errorParser
+) : AuthenticatedApiClientBase(http, store, errorParser), IIdentityApiClient
 {
     public async Task<(bool ok, string? error)> RegisterAsync(
         string email,
         string password,
-        CancellationToken ct = default
-    )
+        CancellationToken ct = default)
     {
-        var resp = await http.PostAsJsonAsync("/register", new { email, password }, ct);
-        return resp.IsSuccessStatusCode ? (true, null) : (false, await ReadErrorAsync(resp, ct));
+        var response = await Http.PostAsJsonAsync("/register", new { email, password }, ct);
+        return response.IsSuccessStatusCode
+            ? (true, null)
+            : (false, await ErrorParser.ReadErrorAsync(response, ct));
     }
 
     public async Task<(bool ok, string? error)> LoginAsync(
         string email,
         string password,
-        CancellationToken ct = default
-    )
+        CancellationToken ct = default)
     {
-        var resp = await http.PostAsJsonAsync("/login", new { email, password }, ct);
-        if (!resp.IsSuccessStatusCode)
-            return (false, await ReadErrorAsync(resp, ct));
-        var token = await resp.Content.ReadFromJsonAsync<LoginResponse>(ct);
+        var response = await Http.PostAsJsonAsync("/login", new { email, password }, ct);
+        if (!response.IsSuccessStatusCode)
+            return (false, await ErrorParser.ReadErrorAsync(response, ct));
+
+        var token = await response.Content.ReadFromJsonAsync<LoginResponse>(ct);
         if (token is null)
-            return (false, "Empty token response");
+            return (false, "Something went wrong. Please try again.");
+
         store.SetAuthenticatedSession(token.AccessToken, token.RefreshToken, token.ExpiresIn, email);
         await browserAuthSessionStore.PersistAsync(ct);
         return (true, null);
@@ -40,16 +42,13 @@ public class IdentityApiClient(
     public async Task<(bool ok, string? error)> ChangePasswordAsync(
         string oldPassword,
         string newPassword,
-        CancellationToken ct = default
-    )
+        CancellationToken ct = default)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, "/manage/info")
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/manage/info")
         {
             Content = JsonContent.Create(new { oldPassword, newPassword }),
         };
-        AttachAuth(req);
-        var resp = await http.SendAsync(req, ct);
-        return resp.IsSuccessStatusCode ? (true, null) : (false, await ReadErrorAsync(resp, ct));
+        return await SendAsync(request, ct);
     }
 
     public async Task LogoutAsync(CancellationToken ct = default)
@@ -58,31 +57,10 @@ public class IdentityApiClient(
         await browserAuthSessionStore.ClearAsync(ct);
     }
 
-    private void AttachAuth(HttpRequestMessage req)
-    {
-        if (!string.IsNullOrEmpty(store.AccessToken))
-        {
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", store.AccessToken);
-        }
-    }
-
-    private static async Task<string> ReadErrorAsync(HttpResponseMessage resp, CancellationToken ct)
-    {
-        try
-        {
-            var body = await resp.Content.ReadAsStringAsync(ct);
-            return string.IsNullOrWhiteSpace(body) ? resp.ReasonPhrase ?? "Request failed" : body;
-        }
-        catch
-        {
-            return resp.ReasonPhrase ?? "Request failed";
-        }
-    }
-
     private record LoginResponse(
         string AccessToken,
         string RefreshToken,
         int ExpiresIn,
-        string TokenType
-    );
+        string TokenType);
 }
+

@@ -17,6 +17,7 @@ builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<TokenStore>();
 builder.Services.AddScoped<BrowserAuthSessionStore>();
 builder.Services.AddScoped<AuthenticationStateProvider, CircuitAuthStateProvider>();
+builder.Services.AddScoped<IIdentityErrorParser, IdentityErrorParser>();
 
 builder.Services.AddHttpClient<WeatherApiClient>(client =>
 {
@@ -27,11 +28,13 @@ builder.Services.AddHttpClient<IdentityApiClient>(client =>
 {
     client.BaseAddress = new("https+http://apiservice");
 });
+builder.Services.AddScoped<IIdentityApiClient>(sp => sp.GetRequiredService<IdentityApiClient>());
 
 builder.Services.AddHttpClient<ProfileApiClient>(client =>
 {
     client.BaseAddress = new("https+http://apiservice");
 });
+builder.Services.AddScoped<IProfileApiClient>(sp => sp.GetRequiredService<ProfileApiClient>());
 
 builder.Services.AddHttpClient<TemporalProfileApiClient>(client =>
 {
