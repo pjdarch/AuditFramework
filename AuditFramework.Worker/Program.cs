@@ -6,10 +6,17 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.AddServiceDefaults();
 
-var temporalAddress = builder.Configuration["Temporal:Address"] ?? "localhost:7233";
+// Register the Temporal client separately so it can also be injected
+// (e.g. to start workflows from within this process)
+builder.Services.AddTemporalClient(options =>
+{
+    options.TargetHost = builder.Configuration["Temporal:Address"] ?? "localhost:7233";
+    options.Namespace = "default";
+});
 
+// Worker references the already-registered client; only needs the task queue
 builder.Services
-    .AddHostedTemporalWorker(temporalAddress, "default", "audit-task-queue")
+    .AddHostedTemporalWorker("audit-task-queue")
     .AddScopedActivities<AuditActivities>()
     .AddWorkflow<AuditWorkflow>();
 
